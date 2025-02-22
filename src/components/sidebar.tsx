@@ -58,7 +58,7 @@ export function Sidebar() {
         <div className="flex h-14 items-center border-b px-4 bg-white dark:bg-gray-100">
           <Link className="flex items-center gap-2 font-semibold text-gray-800 dark:text-gray-700" href="/">
             <Package className="h-6 w-6 text-blue-500 dark:text-blue-400" />
-            <span className="">Voise Chem's IMS</span>
+            <span className="">Voise Chems IMS</span>
           </Link>
         </div>
         <ScrollArea className="flex-1 py-2">

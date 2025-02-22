@@ -5,7 +5,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,12 +20,30 @@ import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import type { DateRange } from "react-day-picker"
 import { PDFExport } from "@/components/pdf-export"
 
+// ----------- Zod Schemas -----------
 const formSchema = z.object({
   customer: z.string().min(1, "Customer is required."),
   dateOfPurchase: z.date({
@@ -28,7 +53,10 @@ const formSchema = z.object({
   quantity: z.number().min(1, "Quantity must be at least 1."),
   amount: z.number().min(0, "Amount must be a non-negative number."),
   dateOfPayment: z.date().optional(),
-  paymentAmount: z.number().min(0, "Payment amount must be a non-negative number.").optional(),
+  paymentAmount: z
+    .number()
+    .min(0, "Payment amount must be a non-negative number.")
+    .optional(),
 })
 
 const paymentFormSchema = z.object({
@@ -39,8 +67,15 @@ const paymentFormSchema = z.object({
   paymentAmount: z.number().min(0, "Payment amount must be a non-negative number."),
 })
 
+// ----------- Type for Full Sales Record -----------
+type Sale = z.infer<typeof formSchema> & {
+  id: number
+  payments: Array<{ date: Date; amount: number }>
+  balance: number
+}
+
 export default function SalesPage() {
-  const [sales, setSales] = useState([
+  const [sales, setSales] = useState<Sale[]>([
     {
       id: 1,
       customer: "Customer 1",
@@ -79,6 +114,7 @@ export default function SalesPage() {
   })
   const [customerFilter, setCustomerFilter] = useState("")
 
+  // ----- Main "Record Sale" Form -----
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -87,11 +123,11 @@ export default function SalesPage() {
       product: "",
       quantity: 1,
       amount: 0,
-
       paymentAmount: 0,
     },
   })
 
+  // ----- "Additional Payment" Form -----
   const paymentForm = useForm<z.infer<typeof paymentFormSchema>>({
     resolver: zodResolver(paymentFormSchema),
     defaultValues: {
@@ -101,16 +137,18 @@ export default function SalesPage() {
     },
   })
 
+  // ----- Submit New Sale -----
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const newSale = {
+    const newSale: Sale = {
       id: sales.length + 1,
       ...values,
-      payments: [{ date: values.dateOfPayment, amount: values.paymentAmount }].filter(
-        (payment) => payment.date && payment.amount,
-      ),
+      payments: [
+        // Only add payment if user specified
+        { date: values.dateOfPayment || new Date(), amount: values.paymentAmount || 0 },
+      ].filter((payment) => payment.date && payment.amount),
       balance: values.amount - (values.paymentAmount || 0),
     }
-    setSales([...sales, newSale])
+    setSales((prev) => [...prev, newSale])
     toast({
       title: "Sale recorded",
       description: "New sale has been recorded successfully.",
@@ -118,11 +156,15 @@ export default function SalesPage() {
     form.reset()
   }
 
+  // ----- Submit Additional Payment -----
   function onPaymentSubmit(values: z.infer<typeof paymentFormSchema>) {
     setSales(
       sales.map((sale) => {
         if (sale.id === values.saleId) {
-          const newPayments = [...sale.payments, { date: values.dateOfPayment, amount: values.paymentAmount }]
+          const newPayments = [
+            ...sale.payments,
+            { date: values.dateOfPayment, amount: values.paymentAmount },
+          ]
           const totalPaid = newPayments.reduce((sum, payment) => sum + payment.amount, 0)
           return {
             ...sale,
@@ -131,7 +173,7 @@ export default function SalesPage() {
           }
         }
         return sale
-      }),
+      })
     )
     toast({
       title: "Payment recorded",
@@ -140,17 +182,23 @@ export default function SalesPage() {
     paymentForm.reset()
   }
 
+  // ----- Filtered Sales for Table -----
   const filteredSales = sales.filter((sale) => {
     const dateInRange =
       (!dateRange?.from || sale.dateOfPurchase >= dateRange.from) &&
       (!dateRange?.to || sale.dateOfPurchase <= dateRange.to)
-    const customerMatch = !customerFilter || sale.customer.toLowerCase().includes(customerFilter.toLowerCase())
+    const customerMatch =
+      !customerFilter ||
+      sale.customer.toLowerCase().includes(customerFilter.toLowerCase())
     return dateInRange && customerMatch
   })
 
+  // ------------------ RENDER ------------------
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Sales & Collection</h2>
+
+      {/* ----- Card: Record Sale ----- */}
       <Card>
         <CardHeader>
           <CardTitle>Record Sale</CardTitle>
@@ -158,6 +206,7 @@ export default function SalesPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Customer Field */}
               <FormField
                 control={form.control}
                 name="customer"
@@ -180,6 +229,8 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
+              {/* Date of Purchase */}
               <FormField
                 control={form.control}
                 name="dateOfPurchase"
@@ -193,10 +244,12 @@ export default function SalesPage() {
                             variant={"outline"}
                             className={cn(
                               "w-[240px] pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground",
+                              !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            {field.value
+                              ? format(field.value, "PPP")
+                              : "Pick a date"}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -206,7 +259,9 @@ export default function SalesPage() {
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -215,6 +270,8 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
+              {/* Product Field */}
               <FormField
                 control={form.control}
                 name="product"
@@ -237,6 +294,8 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
+              {/* Quantity */}
               <FormField
                 control={form.control}
                 name="quantity"
@@ -244,12 +303,18 @@ export default function SalesPage() {
                   <FormItem>
                     <FormLabel>Quantity</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Amount */}
               <FormField
                 control={form.control}
                 name="amount"
@@ -257,12 +322,18 @@ export default function SalesPage() {
                   <FormItem>
                     <FormLabel>Amount (₹)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Optional Payment Date */}
               <FormField
                 control={form.control}
                 name="dateOfPayment"
@@ -276,10 +347,12 @@ export default function SalesPage() {
                             variant={"outline"}
                             className={cn(
                               "w-[240px] pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground",
+                              !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            {field.value
+                              ? format(field.value, "PPP")
+                              : "Pick a date"}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -289,7 +362,9 @@ export default function SalesPage() {
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -298,6 +373,8 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
+              {/* Optional Payment Amount */}
               <FormField
                 control={form.control}
                 name="paymentAmount"
@@ -305,23 +382,32 @@ export default function SalesPage() {
                   <FormItem>
                     <FormLabel>Payment Amount (₹)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Submit Sale */}
               <Button type="submit">Record Sale</Button>
             </form>
           </Form>
         </CardContent>
       </Card>
+
+      {/* ----- Card: Sales History ----- */}
       <Card>
         <CardHeader>
           <CardTitle>Sales History</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4 mb-4">
+            {/* Filter by Date Range */}
             <div>
               <h4 className="text-sm font-medium mb-2">Filter by Date Range</h4>
               <Popover>
@@ -331,14 +417,15 @@ export default function SalesPage() {
                     variant={"outline"}
                     className={cn(
                       "w-[300px] justify-start text-left font-normal",
-                      !dateRange && "text-muted-foreground",
+                      !dateRange && "text-muted-foreground"
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {dateRange?.from ? (
                       dateRange.to ? (
                         <>
-                          {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                          {format(dateRange.from, "LLL dd, y")} -{" "}
+                          {format(dateRange.to, "LLL dd, y")}
                         </>
                       ) : (
                         format(dateRange.from, "LLL dd, y")
@@ -360,6 +447,8 @@ export default function SalesPage() {
                 </PopoverContent>
               </Popover>
             </div>
+
+            {/* Filter by Customer */}
             <div>
               <h4 className="text-sm font-medium mb-2">Filter by Customer</h4>
               <Input
@@ -368,11 +457,15 @@ export default function SalesPage() {
                 onChange={(e) => setCustomerFilter(e.target.value)}
               />
             </div>
+
+            {/* Export */}
             <div>
               <h4 className="text-sm font-medium mb-2">Export Customer Data</h4>
               <PDFExport customerName={customerFilter} sales={filteredSales} />
             </div>
           </div>
+
+          {/* Sales Table */}
           <Table>
             <TableHeader>
               <TableRow>
@@ -418,13 +511,18 @@ export default function SalesPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* ----- Card: Record Additional Payment ----- */}
       <Card>
         <CardHeader>
           <CardTitle>Record Additional Payment</CardTitle>
         </CardHeader>
         <CardContent>
           <Form {...paymentForm}>
-            <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4">
+            <form
+              onSubmit={paymentForm.handleSubmit(onPaymentSubmit)}
+              className="space-y-4"
+            >
               <FormField
                 control={paymentForm.control}
                 name="saleId"
@@ -451,10 +549,12 @@ export default function SalesPage() {
                             variant={"outline"}
                             className={cn(
                               "w-[240px] pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground",
+                              !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            {field.value
+                              ? format(field.value, "PPP")
+                              : "Pick a date"}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -464,7 +564,9 @@ export default function SalesPage() {
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          disabled={(date) =>
+                            date > new Date() || date < new Date("1900-01-01")
+                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -480,7 +582,11 @@ export default function SalesPage() {
                   <FormItem>
                     <FormLabel>Payment Amount (₹)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -494,4 +600,3 @@ export default function SalesPage() {
     </div>
   )
 }
-

@@ -56,7 +56,10 @@ export default function FinancialResourcesPage() {
     const newResource = {
       id: resources.length + 1,
       ...values,
-    }
+      description: values.description ?? "", // Ensure description is a string
+  };
+  setResources([...resources, newResource]);
+  
     setResources([...resources, newResource])
     toast({
       title: "Financial resource added",

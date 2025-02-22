@@ -47,6 +47,7 @@ export default function ExpensesPage() {
     const newExpense = {
       id: expenses.length + 1,
       ...values,
+      description: values.description ?? "", // Ensure description is a string
     }
     setExpenses([...expenses, newExpense])
     toast({
@@ -54,7 +55,7 @@ export default function ExpensesPage() {
       description: "New expense has been recorded successfully.",
     })
     form.reset()
-  }
+}
 
   return (
     <div className="space-y-6">

@@ -3,7 +3,8 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { jsPDF } from "jspdf"
-import "jspdf-autotable"
+// Import the default export from "jspdf-autotable" for proper TS typing:
+import autoTable from "jspdf-autotable"
 
 type Sale = {
   id: number
@@ -35,8 +36,18 @@ export function PDFExport({ customerName, sales }: PDFExportProps) {
     doc.setFontSize(11)
     doc.setTextColor(100)
 
-    const tableColumn = ["Date", "Product", "Quantity", "Amount", "Payments", "Balance"]
+    const tableColumn = [
+      "Date",
+      "Product",
+      "Quantity",
+      "Amount",
+      "Payments",
+      "Balance",
+    ]
+
+    // Prepare rows
     const tableRows = sales.map((sale) => [
+      // Ensure the date is displayed as a string
       sale.dateOfPurchase.toLocaleDateString(),
       sale.product,
       sale.quantity,
@@ -45,12 +56,14 @@ export function PDFExport({ customerName, sales }: PDFExportProps) {
       `₹${sale.balance.toFixed(2)}`,
     ])
 
-    doc.autoTable({
+    // Generate the table
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 30,
     })
 
+    // Save the PDF
     doc.save(`${customerName}_sales_report.pdf`)
 
     setIsExporting(false)
@@ -62,4 +75,3 @@ export function PDFExport({ customerName, sales }: PDFExportProps) {
     </Button>
   )
 }
-
