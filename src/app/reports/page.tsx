@@ -73,7 +73,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$45,231.89</div>
+              <div className="text-2xl font-bold">₹45,231.89</div>
               <p className="text-xs text-muted-foreground">+20.1% from last month</p>
             </CardContent>
           </Card>
@@ -82,7 +82,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium">Expenses</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$12,345.67</div>
+              <div className="text-2xl font-bold">₹12,345.67</div>
               <p className="text-xs text-muted-foreground">+10.1% from last month</p>
             </CardContent>
           </Card>
@@ -91,7 +91,7 @@ export default function ReportsPage() {
               <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">$32,886.22</div>
+              <div className="text-2xl font-bold">₹32,886.22</div>
               <p className="text-xs text-muted-foreground">+15.2% from last month</p>
             </CardContent>
           </Card>
