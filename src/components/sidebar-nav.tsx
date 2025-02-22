@@ -31,12 +31,12 @@ const sidebarNavItems = [
     title: "Purchases",
     href: "/purchases",
     icon: ShoppingCart,
-  }
-  // {
-  //   title: "Transactions",
-  //   href: "/transactions",
-  //   icon: FileText,
-  // },
+  },
+  {
+    title: "Transactions",
+    href: "/transactions",
+    icon: FileText,
+  },
 ]
 
 export function SidebarNav() {
@@ -46,7 +46,7 @@ export function SidebarNav() {
     <ScrollArea className="w-64 border-r">
       <div className="space-y-4 py-4">
         <div className="px-3 py-2">
-          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Voise Chems</h2>
+          <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">Detergent Factory</h2>
           <div className="space-y-1">
             {sidebarNavItems.map((item) => (
               <Button

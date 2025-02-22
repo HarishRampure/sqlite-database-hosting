@@ -4,322 +4,493 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { format } from "date-fns"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { toast } from "@/hooks/use-toast"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { Calendar } from "@/components/ui/calendar"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "@/hooks/use-toast"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import type { DateRange } from "react-day-picker"
+import { PDFExport } from "@/components/pdf-export"
 
 const formSchema = z.object({
-  date: z.date({
-    required_error: "A date of sale is required.",
+  customer: z.string().min(1, "Customer is required."),
+  dateOfPurchase: z.date({
+    required_error: "Date of purchase is required.",
   }),
-  product: z.string({
-    required_error: "Please select a product.",
+  product: z.string().min(1, "Product is required."),
+  quantity: z.number().min(1, "Quantity must be at least 1."),
+  amount: z.number().min(0, "Amount must be a non-negative number."),
+  dateOfPayment: z.date().optional(),
+  paymentAmount: z.number().min(0, "Payment amount must be a non-negative number.").optional(),
+})
+
+const paymentFormSchema = z.object({
+  saleId: z.number(),
+  dateOfPayment: z.date({
+    required_error: "Date of payment is required.",
   }),
-  quantity: z.number().positive("Quantity must be a positive number."),
-  customerName: z.string().min(1, "Customer name is required."),
-  contactNumber: z.string().min(10, "Contact number must be at least 10 digits."),
+  paymentAmount: z.number().min(0, "Payment amount must be a non-negative number."),
 })
 
 export default function SalesPage() {
   const [sales, setSales] = useState([
     {
       id: 1,
-      date: "2023-06-01",
-      product: "Basic Detergent",
-      quantity: 100,
-      total: 599,
-      customerName: "John Doe",
-      contactNumber: "1234567890",
-      lastPurchaseDate: "2023-05-15",
+      customer: "Customer 1",
+      dateOfPurchase: new Date("2023-06-01"),
+      product: "Product A",
+      quantity: 10,
+      amount: 1000,
+      payments: [{ date: new Date("2023-06-01"), amount: 500 }],
+      balance: 500,
     },
     {
       id: 2,
-      date: "2023-06-02",
-      product: "Premium Detergent",
-      quantity: 50,
-      total: 449.5,
-      customerName: "Jane Smith",
-      contactNumber: "9876543210",
-      lastPurchaseDate: "2023-05-20",
+      customer: "Customer 2",
+      dateOfPurchase: new Date("2023-06-15"),
+      product: "Product B",
+      quantity: 5,
+      amount: 750,
+      payments: [{ date: new Date("2023-06-15"), amount: 750 }],
+      balance: 0,
     },
     {
       id: 3,
-      date: "2023-06-03",
-      product: "Eco-Friendly Detergent",
-      quantity: 75,
-      total: 599.25,
-      customerName: "Alice Johnson",
-      contactNumber: "5555555555",
-      lastPurchaseDate: "2023-05-25",
-    },
-    {
-      id: 4,
-      date: "2023-06-04",
-      product: "Basic Detergent",
-      quantity: 120,
-      total: 718.8,
-      customerName: "Bob Brown",
-      contactNumber: "1112223333",
-      lastPurchaseDate: "2023-05-30",
-    },
-    {
-      id: 5,
-      date: "2023-06-05",
-      product: "Premium Detergent",
-      quantity: 60,
-      total: 539.4,
-      customerName: "Charlie Davis",
-      contactNumber: "4444444444",
-      lastPurchaseDate: "2023-06-01",
+      customer: "Customer 3",
+      dateOfPurchase: new Date("2023-07-01"),
+      product: "Product C",
+      quantity: 8,
+      amount: 1200,
+      payments: [{ date: new Date("2023-07-01"), amount: 600 }],
+      balance: 600,
     },
   ])
+
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: undefined,
+    to: undefined,
+  })
+  const [customerFilter, setCustomerFilter] = useState("")
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      quantity: 0,
-      customerName: "",
-      contactNumber: "",
+      customer: "",
+      dateOfPurchase: new Date(),
+      product: "",
+      quantity: 1,
+      amount: 0,
+
+      paymentAmount: 0,
+    },
+  })
+
+  const paymentForm = useForm<z.infer<typeof paymentFormSchema>>({
+    resolver: zodResolver(paymentFormSchema),
+    defaultValues: {
+      saleId: 0,
+      dateOfPayment: new Date(),
+      paymentAmount: 0,
     },
   })
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    // In a real application, you would calculate the total based on the product price
-    const total = values.quantity * 5.99 // Assuming a fixed price for simplicity
     const newSale = {
       id: sales.length + 1,
-      date: format(values.date, "yyyy-MM-dd"),
-      product: values.product,
-      quantity: values.quantity,
-      total: total,
-      customerName: values.customerName,
-      contactNumber: values.contactNumber,
-      lastPurchaseDate: format(new Date(), "yyyy-MM-dd"), // Set to today's date for a new sale
+      ...values,
+      payments: [{ date: values.dateOfPayment, amount: values.paymentAmount }].filter(
+        (payment) => payment.date && payment.amount,
+      ),
+      balance: values.amount - (values.paymentAmount || 0),
     }
     setSales([...sales, newSale])
     toast({
       title: "Sale recorded",
-      description: "The new sale has been successfully added.",
+      description: "New sale has been recorded successfully.",
     })
     form.reset()
   }
 
-  const chartData = [
-    { name: "Basic Detergent", sales: 1317.8 },
-    { name: "Premium Detergent", sales: 988.9 },
-    { name: "Eco-Friendly Detergent", sales: 599.25 },
-  ]
+  function onPaymentSubmit(values: z.infer<typeof paymentFormSchema>) {
+    setSales(
+      sales.map((sale) => {
+        if (sale.id === values.saleId) {
+          const newPayments = [...sale.payments, { date: values.dateOfPayment, amount: values.paymentAmount }]
+          const totalPaid = newPayments.reduce((sum, payment) => sum + payment.amount, 0)
+          return {
+            ...sale,
+            payments: newPayments,
+            balance: sale.amount - totalPaid,
+          }
+        }
+        return sale
+      }),
+    )
+    toast({
+      title: "Payment recorded",
+      description: "New payment has been recorded successfully.",
+    })
+    paymentForm.reset()
+  }
 
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total, 0)
-  const totalUnits = sales.reduce((sum, sale) => sum + sale.quantity, 0)
+  const filteredSales = sales.filter((sale) => {
+    const dateInRange =
+      (!dateRange?.from || sale.dateOfPurchase >= dateRange.from) &&
+      (!dateRange?.to || sale.dateOfPurchase <= dateRange.to)
+    const customerMatch = !customerFilter || sale.customer.toLowerCase().includes(customerFilter.toLowerCase())
+    return dateInRange && customerMatch
+  })
 
   return (
-    <div className="flex-col md:flex">
-      <div className="flex-1 space-y-4 p-8 pt-6">
-        <div className="flex items-center justify-between space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Sales Dashboard</h2>
-          <Button>Generate Report</Button>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Sales</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${totalSales.toFixed(2)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Units Sold</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalUnits}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg. Sale Value</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">${(totalSales / sales.length).toFixed(2)}</div>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sales by Product</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="sales" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Enter New Sale</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Date</FormLabel>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <FormControl>
-                              <Button
-                                variant={"outline"}
-                                className={cn(
-                                  "w-[240px] pl-3 text-left font-normal",
-                                  !field.value && "text-muted-foreground",
-                                )}
-                              >
-                                {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                              </Button>
-                            </FormControl>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              onSelect={field.onChange}
-                              disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="product"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Product</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select a product" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Basic Detergent">Basic Detergent</SelectItem>
-                            <SelectItem value="Premium Detergent">Premium Detergent</SelectItem>
-                            <SelectItem value="Eco-Friendly Detergent">Eco-Friendly Detergent</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="quantity"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Quantity</FormLabel>
+    <div className="space-y-6">
+      <h2 className="text-3xl font-bold tracking-tight">Sales & Collection</h2>
+      <Card>
+        <CardHeader>
+          <CardTitle>Record Sale</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="customer"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a customer" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Customer 1">Customer 1</SelectItem>
+                        <SelectItem value="Customer 2">Customer 2</SelectItem>
+                        <SelectItem value="Customer 3">Customer 3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="dateOfPurchase"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date of Purchase</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <Input
-                            type="number"
-                            {...field}
-                            onChange={(e) => field.onChange(Number.parseInt(e.target.value))}
-                          />
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-[240px] pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground",
+                            )}
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="customerName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Customer Name</FormLabel>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="product"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Product A">Product A</SelectItem>
+                        <SelectItem value="Product B">Product B</SelectItem>
+                        <SelectItem value="Product C">Product C</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantity</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="dateOfPayment"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date of Payment (Optional)</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <FormControl>
-                          <Input {...field} />
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-[240px] pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground",
+                            )}
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="paymentAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit">Record Sale</Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Sales History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4 mb-4">
+            <div>
+              <h4 className="text-sm font-medium mb-2">Filter by Date Range</h4>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-[300px] justify-start text-left font-normal",
+                      !dateRange && "text-muted-foreground",
                     )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="contactNumber"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Contact Number</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateRange?.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
                     )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={dateRange?.from}
+                    selected={dateRange}
+                    onSelect={setDateRange}
+                    numberOfMonths={2}
                   />
-                  <Button type="submit">Record Sale</Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-        </div>
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Last Purchase</TableHead>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Filter by Customer</h4>
+              <Input
+                placeholder="Enter customer name"
+                value={customerFilter}
+                onChange={(e) => setCustomerFilter(e.target.value)}
+              />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium mb-2">Export Customer Data</h4>
+              <PDFExport customerName={customerFilter} sales={filteredSales} />
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead>Date of Purchase</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Quantity</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Payments</TableHead>
+                <TableHead>Balance</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSales.map((sale) => (
+                <TableRow key={sale.id}>
+                  <TableCell>{sale.customer}</TableCell>
+                  <TableCell>{format(sale.dateOfPurchase, "PPP")}</TableCell>
+                  <TableCell>{sale.product}</TableCell>
+                  <TableCell>{sale.quantity}</TableCell>
+                  <TableCell>₹{sale.amount}</TableCell>
+                  <TableCell>
+                    {sale.payments.map((payment, index) => (
+                      <div key={index}>
+                        {format(payment.date, "PPP")}: ₹{payment.amount}
+                      </div>
+                    ))}
+                  </TableCell>
+                  <TableCell>₹{sale.balance}</TableCell>
+                  <TableCell>
+                    <Button
+                      onClick={() => {
+                        paymentForm.setValue("saleId", sale.id)
+                        paymentForm.setValue("paymentAmount", sale.balance)
+                      }}
+                    >
+                      Add Payment
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sales.map((sale) => (
-                  <TableRow key={sale.id}>
-                    <TableCell>{sale.date}</TableCell>
-                    <TableCell>{sale.product}</TableCell>
-                    <TableCell>{sale.quantity}</TableCell>
-                    <TableCell>${sale.total.toFixed(2)}</TableCell>
-                    <TableCell>{sale.customerName}</TableCell>
-                    <TableCell>{sale.contactNumber}</TableCell>
-                    <TableCell>{sale.lastPurchaseDate}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Record Additional Payment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...paymentForm}>
+            <form onSubmit={paymentForm.handleSubmit(onPaymentSubmit)} className="space-y-4">
+              <FormField
+                control={paymentForm.control}
+                name="saleId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sale ID</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} readOnly />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentForm.control}
+                name="dateOfPayment"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date of Payment</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-[240px] pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground",
+                            )}
+                          >
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={paymentForm.control}
+                name="paymentAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Payment Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit">Record Payment</Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   )
 }
