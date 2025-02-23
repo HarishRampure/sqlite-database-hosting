@@ -5,31 +5,49 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { toast } from "@/hooks/use-toast"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 
+// -------------- Zod schema --------------
 const formSchema = z.object({
-  name: z.string().min(2, {
-    message: "Name must be at least 2 characters.",
-  }),
-  contactNo: z.string().min(10, {
-    message: "Contact number must be at least 10 digits.",
-  }),
-  address: z.string().min(5, {
-    message: "Address must be at least 5 characters.",
-  }),
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  contactNo: z.string().optional(),
+  address: z.string().optional(),
 })
 
+// 1) Type for the form fields
+type CustomerFormValues = z.infer<typeof formSchema>
+
+// 2) Extend with `id` which isn't in the form
+type Customer = CustomerFormValues & {
+  id: number
+}
+
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState([
+  // 3) Type the state as Customer[]
+  const [customers, setCustomers] = useState<Customer[]>([
     { id: 1, name: "John Doe", contactNo: "1234567890", address: "123 Main St" },
     { id: 2, name: "Jane Smith", contactNo: "9876543210", address: "456 Elm St" },
   ])
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<CustomerFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
@@ -38,19 +56,43 @@ export default function CustomersPage() {
     },
   })
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    setCustomers([...customers, { id: customers.length + 1, ...values }])
+  function onSubmit(values: CustomerFormValues) {
+    // Check for duplicate entries based on the name (case-insensitive)
+    const isDuplicate = customers.some(
+      (customer) => customer.name.trim().toLowerCase() === values.name.trim().toLowerCase()
+    )
+
+    if (isDuplicate) {
+      toast({
+        title: "Duplicate entry",
+        description: "A customer with this name already exists.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setCustomers((prev) => [
+      ...prev,
+      {
+        id: prev.length + 1,
+        ...values,
+      },
+    ])
+
     toast({
       title: "Customer added",
       description: "New customer has been added successfully.",
     })
+
     form.reset()
   }
 
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
+
       <div className="grid gap-6 md:grid-cols-2">
+        {/* Form */}
         <div>
           <h3 className="text-lg font-medium mb-4">Add New Customer</h3>
           <Form {...form}>
@@ -73,7 +115,7 @@ export default function CustomersPage() {
                 name="contactNo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Contact No</FormLabel>
+                    <FormLabel>Contact No (Optional)</FormLabel>
                     <FormControl>
                       <Input placeholder="1234567890" {...field} />
                     </FormControl>
@@ -86,9 +128,9 @@ export default function CustomersPage() {
                 name="address"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Address</FormLabel>
+                    <FormLabel>Address (Optional)</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="123 Main St, City, Country" {...field} />
+                      <Textarea placeholder="123 Main St" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -98,6 +140,8 @@ export default function CustomersPage() {
             </form>
           </Form>
         </div>
+
+        {/* Table */}
         <div>
           <h3 className="text-lg font-medium mb-4">Customer List</h3>
           <Table>
@@ -112,8 +156,8 @@ export default function CustomersPage() {
               {customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell>{customer.name}</TableCell>
-                  <TableCell>{customer.contactNo}</TableCell>
-                  <TableCell>{customer.address}</TableCell>
+                  <TableCell>{customer.contactNo || "—"}</TableCell>
+                  <TableCell>{customer.address || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -123,4 +167,3 @@ export default function CustomersPage() {
     </div>
   )
 }
-

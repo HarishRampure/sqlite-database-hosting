@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, useFieldArray } from "react-hook-form"
 import * as z from "zod"
@@ -32,12 +32,25 @@ import {
 import type { DateRange } from "react-day-picker"
 import * as XLSX from "xlsx"
 
-// ----- Zod Schema -----
+// --- IMPORT the shadcn/ui Select components ---
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+
+// -------------- Zod Schema with product field --------------
 const formSchema = z.object({
   dateOfManufacturing: z.date({
     required_error: "A date of manufacturing is required.",
   }),
   batchNo: z.string().min(1, "Batch number is required."),
+
+  // NEW: 'product' field
+  product: z.string().min(1, "Please select a product."),
+
   rawMaterials: z.array(
     z.object({
       name: z.string().min(1, "Material name is required."),
@@ -48,6 +61,25 @@ const formSchema = z.object({
 })
 
 export default function ProductionFlowPage() {
+  // --------------------------------------------------
+  // 1) Mock or fetch your product list here
+  // --------------------------------------------------
+  const [allProducts, setAllProducts] = useState<Array<{ id: number; name: string }>>([])
+
+  useEffect(() => {
+    // Example: local mock data
+    // Replace with a real fetch call to an API or a global store as needed
+    const fetchedProducts = [
+      { id: 1, name: "Product A" },
+      { id: 2, name: "Product B" },
+      { id: 3, name: "Product C" },
+    ]
+    setAllProducts(fetchedProducts)
+  }, [])
+
+  // --------------------------------------------------
+  // 2) Production State & Date Filter
+  // --------------------------------------------------
   const [productions, setProductions] = useState<
     Array<
       z.infer<typeof formSchema> & {
@@ -58,17 +90,21 @@ export default function ProductionFlowPage() {
       }
     >
   >([])
+
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: undefined,
     to: undefined,
   })
 
-  // ----- React Hook Form Setup -----
+  // --------------------------------------------------
+  // 3) React Hook Form Setup
+  // --------------------------------------------------
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       dateOfManufacturing: new Date(),
       batchNo: "",
+      product: "", // initialize blank
       rawMaterials: [{ name: "", quantity: 0, pricePerUnit: 0 }],
     },
   })
@@ -78,7 +114,9 @@ export default function ProductionFlowPage() {
     control: form.control,
   })
 
-  // ----- Submission Handler -----
+  // --------------------------------------------------
+  // 4) Submit Handler
+  // --------------------------------------------------
   function onSubmit(values: z.infer<typeof formSchema>) {
     const totalQuantity = values.rawMaterials.reduce(
       (sum, material) => sum + material.quantity,
@@ -106,35 +144,35 @@ export default function ProductionFlowPage() {
     form.reset()
   }
 
-  // ----- Filtered Productions by Date Range -----
+  // --------------------------------------------------
+  // 5) Filtered Productions by Date Range
+  // --------------------------------------------------
   const filteredProductions = productions.filter((production) => {
-    // If there's no 'from' date selected, show everything
-    if (!dateRange?.from) {
-      return true
-    }
-    // If only 'from' is set (no 'to'), filter from that date forward
+    if (!dateRange?.from) return true
     if (dateRange.from && !dateRange.to) {
       return production.dateOfManufacturing >= dateRange.from
     }
-    // If both 'from' and 'to' are set, filter within that range
     return (
       production.dateOfManufacturing >= dateRange.from &&
       production.dateOfManufacturing <= (dateRange.to || dateRange.from)
     )
   })
 
-  // ----- Export to Excel -----
+  // --------------------------------------------------
+  // 6) Export to Excel
+  // --------------------------------------------------
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(
       filteredProductions.map((p) => ({
         Date: format(p.dateOfManufacturing, "PPP"),
         "Batch No": p.batchNo,
+        Product: p.product,
         "Raw Materials": p.rawMaterials
-          .map((m) => `${m.name} (${m.quantity} kg/L)`)
+          .map((m) => `${m.name} (${m.quantity})`)
           .join(", "),
-        "Total Quantity (kg/L)": p.totalQuantity,
-        "Total Raw Material Cost (₹)": p.totalRawMaterialCost,
-        "Price Per Unit (₹/kg or ₹/L)": p.pricePerUnit,
+        "Total Quantity": p.totalQuantity,
+        "Total Raw Material Cost": p.totalRawMaterialCost,
+        "Price Per Unit": p.pricePerUnit,
       }))
     )
     const workbook = XLSX.utils.book_new()
@@ -142,11 +180,14 @@ export default function ProductionFlowPage() {
     XLSX.writeFile(workbook, "production_data.xlsx")
   }
 
+  // --------------------------------------------------
+  // 7) Render
+  // --------------------------------------------------
   return (
     <div className="space-y-6">
       <h2 className="text-3xl font-bold tracking-tight">Production Flow</h2>
 
-      {/* ----- Record Production ----- */}
+      {/* ----- Record Production Card ----- */}
       <Card>
         <CardHeader>
           <CardTitle>Record Production</CardTitle>
@@ -154,6 +195,7 @@ export default function ProductionFlowPage() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              
               {/* Date of Manufacturing */}
               <FormField
                 control={form.control}
@@ -165,17 +207,15 @@ export default function ProductionFlowPage() {
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
-                            variant={"outline"}
+                            variant="outline"
                             className={cn(
                               "w-[240px] pl-3 text-left font-normal",
                               !field.value && "text-muted-foreground"
                             )}
                           >
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span>Pick a date</span>
-                            )}
+                            {field.value
+                              ? format(field.value, "PPP")
+                              : "Pick a date"}
                             <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                           </Button>
                         </FormControl>
@@ -212,9 +252,38 @@ export default function ProductionFlowPage() {
                 )}
               />
 
-              {/* Raw Materials */}
+              {/* Product SELECT (Shadcn/UI) */}
+              <FormField
+                control={form.control}
+                name="product"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <SelectTrigger className="w-[240px]">
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allProducts.map((prod) => (
+                            <SelectItem key={prod.id} value={prod.name}>
+                              {prod.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Raw Materials Array Fields */}
               {fields.map((field, index) => (
-                <div key={field.id} className="space-y-4">
+                <div key={field.id} className="space-y-4 border p-4 rounded-md">
                   <FormField
                     control={form.control}
                     name={`rawMaterials.${index}.name`}
@@ -265,6 +334,7 @@ export default function ProductionFlowPage() {
                     )}
                   />
 
+                  {/* Remove Material Button */}
                   <Button
                     type="button"
                     variant="outline"
@@ -278,9 +348,7 @@ export default function ProductionFlowPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() =>
-                  append({ name: "", quantity: 0, pricePerUnit: 0 })
-                }
+                onClick={() => append({ name: "", quantity: 0, pricePerUnit: 0 })}
               >
                 Add Material
               </Button>
@@ -291,7 +359,7 @@ export default function ProductionFlowPage() {
         </CardContent>
       </Card>
 
-      {/* ----- Production Records ----- */}
+      {/* ----- Production Records Card ----- */}
       <Card>
         <CardHeader>
           <CardTitle>Production Records</CardTitle>
@@ -305,7 +373,7 @@ export default function ProductionFlowPage() {
                 <PopoverTrigger asChild>
                   <Button
                     id="date"
-                    variant={"outline"}
+                    variant="outline"
                     className={cn(
                       "w-[300px] justify-start text-left font-normal",
                       !dateRange && "text-muted-foreground"
@@ -339,17 +407,19 @@ export default function ProductionFlowPage() {
               </Popover>
             </div>
 
+            {/* Export to Excel */}
             <div>
               <Button onClick={exportToExcel}>Export to Excel</Button>
             </div>
           </div>
 
-          {/* Records Table */}
+          {/* Production Records Table */}
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Batch No</TableHead>
+                <TableHead>Product</TableHead>
                 <TableHead>Raw Materials</TableHead>
                 <TableHead>Total Quantity</TableHead>
                 <TableHead>Total Raw Material Cost</TableHead>
@@ -363,23 +433,18 @@ export default function ProductionFlowPage() {
                     {format(production.dateOfManufacturing, "PPP")}
                   </TableCell>
                   <TableCell>{production.batchNo}</TableCell>
+                  <TableCell>{production.product}</TableCell>
                   <TableCell>
-                    {production.rawMaterials.map((material, index) => (
-                      <div key={index}>
+                    {production.rawMaterials.map((material, idx) => (
+                      <div key={idx}>
                         {material.name}: {material.quantity} kg/L @ ₹
                         {material.pricePerUnit}/unit
                       </div>
                     ))}
                   </TableCell>
-                  <TableCell>
-                    {production.totalQuantity.toFixed(2)} Kgs/Ltrs
-                  </TableCell>
-                  <TableCell>
-                    ₹{production.totalRawMaterialCost.toFixed(2)}
-                  </TableCell>
-                  <TableCell>
-                    ₹{production.pricePerUnit.toFixed(2)}/kg or L
-                  </TableCell>
+                  <TableCell>{production.totalQuantity.toFixed(2)}</TableCell>
+                  <TableCell>₹{production.totalRawMaterialCost.toFixed(2)}</TableCell>
+                  <TableCell>₹{production.pricePerUnit.toFixed(2)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

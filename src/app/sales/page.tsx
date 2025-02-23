@@ -4,43 +4,25 @@ import { useState } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
-import { Button } from "@/components/ui/button"
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { toast } from "@/hooks/use-toast"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
-import { cn } from "@/lib/utils"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { DateRange } from "react-day-picker"
+
+// UI Components
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CalendarIcon } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
+
+// Hooks & utils
+import { toast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+
+// Import the PDF export component
 import { PDFExport } from "@/components/pdf-export"
 
 // ----------- Zod Schemas -----------
@@ -458,9 +440,10 @@ export default function SalesPage() {
               />
             </div>
 
-            {/* Export */}
+            {/* Export (two PDF buttons: Agent & User) */}
             <div>
               <h4 className="text-sm font-medium mb-2">Export Customer Data</h4>
+              {/* Pass in the current customerName filter and filtered sales */}
               <PDFExport customerName={customerFilter} sales={filteredSales} />
             </div>
           </div>
@@ -536,6 +519,7 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={paymentForm.control}
                 name="dateOfPayment"
@@ -575,6 +559,7 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={paymentForm.control}
                 name="paymentAmount"
@@ -592,6 +577,7 @@ export default function SalesPage() {
                   </FormItem>
                 )}
               />
+
               <Button type="submit">Record Payment</Button>
             </form>
           </Form>
